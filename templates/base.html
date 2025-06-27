@@ -97,6 +97,19 @@
                         </ul>
                     </li>
                     
+                    {% if session.role == 'admin' %}
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                            <i class="fas fa-cogs me-1"></i>Sistem
+                        </a>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="{{ url_for('manage_users') }}">
+                                <i class="fas fa-users me-1"></i>Kelola Pengguna
+                            </a></li>
+                        </ul>
+                    </li>
+                    {% endif %}
+                    
                     <li class="nav-item">
                         <a class="nav-link" href="{{ url_for('search_entries') }}">
                             <i class="fas fa-search me-1"></i>Pencarian

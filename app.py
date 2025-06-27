@@ -166,6 +166,62 @@ def logout():
     flash('Anda telah logout', 'info')
     return redirect(url_for('login'))
 
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    if request.method == 'POST':
+        username = request.form['username']
+        password = request.form['password']
+        confirm_password = request.form['confirm_password']
+        
+        # Validasi input
+        if not username or not password:
+            flash('Username dan password wajib diisi!', 'error')
+            return render_template('register.html')
+        
+        if len(username) < 3:
+            flash('Username minimal 3 karakter!', 'error')
+            return render_template('register.html')
+            
+        if len(password) < 6:
+            flash('Password minimal 6 karakter!', 'error')
+            return render_template('register.html')
+            
+        if password != confirm_password:
+            flash('Password dan konfirmasi password tidak cocok!', 'error')
+            return render_template('register.html')
+        
+        # Cek apakah username sudah ada
+        existing_user = User.query.filter_by(username=username).first()
+        if existing_user:
+            flash('Username sudah digunakan! Silakan pilih username lain.', 'error')
+            return render_template('register.html')
+        
+        # Buat user baru
+        new_user = User()
+        new_user.username = username
+        new_user.set_password(password)
+        new_user.role = 'user'  # Default role untuk user baru
+        
+        try:
+            db.session.add(new_user)
+            db.session.commit()
+            flash('Pendaftaran berhasil! Silakan login dengan akun baru Anda.', 'success')
+            return redirect(url_for('login'))
+        except Exception as e:
+            db.session.rollback()
+            flash('Terjadi kesalahan saat mendaftar. Silakan coba lagi.', 'error')
+            return render_template('register.html')
+    
+    return render_template('register.html')
+
+@app.route('/users')
+@login_required
+@admin_required
+def manage_users():
+    """Halaman pengelolaan pengguna (khusus admin)"""
+    users = User.query.order_by(desc(User.created_at)).all()
+    return render_template('users.html', users=users)
+
 @app.route('/dashboard')
 @login_required
 def dashboard():
