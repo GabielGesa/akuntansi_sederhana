@@ -8,7 +8,8 @@ This is a comprehensive accounting application built with Flask that implements 
 
 ### Backend Architecture
 - **Framework**: Flask (Python web framework)
-- **Storage**: In-memory data structures (dictionaries and lists)
+- **Database**: PostgreSQL with SQLAlchemy ORM
+- **Storage**: Persistent database storage with proper relational structure
 - **Session Management**: Flask sessions with server-side secret key
 - **Authentication**: Simple username/password with hashed passwords using Werkzeug
 - **Deployment**: Gunicorn WSGI server configured for production deployment
@@ -21,9 +22,10 @@ This is a comprehensive accounting application built with Flask that implements 
 - **Responsive Design**: Bootstrap responsive grid system
 
 ### Data Storage
-- **Chart of Accounts**: Dictionary-based structure with account codes as keys
-- **Journal Entries**: List-based storage with separate arrays for regular, adjusting, and closing entries
-- **User Authentication**: Dictionary-based user storage with role-based access control
+- **Chart of Accounts**: PostgreSQL table with proper indexing and foreign key relationships
+- **Journal Entries**: Relational database table with foreign keys to accounts and users
+- **User Authentication**: Database-backed user storage with role-based access control
+- **Database Models**: SQLAlchemy ORM models for User, Account, and JournalEntry entities
 
 ## Key Components
 
@@ -104,10 +106,11 @@ This is a comprehensive accounting application built with Flask that implements 
 ### Development Environment
 - Flask development server with debug mode
 - Hot reloading for code changes
-- In-memory data storage for rapid prototyping
+- PostgreSQL database with persistent storage
 
 ### Production Environment
 - Gunicorn WSGI server with multiple workers
+- PostgreSQL database with connection pooling
 - Autoscale deployment target on Replit
 - Environment-based configuration for security
 - Production-ready session management
@@ -118,7 +121,12 @@ This is a comprehensive accounting application built with Flask that implements 
 - Configurable session secrets and database connections
 
 ## Changelog
-- June 27, 2025. Initial setup
+- June 27, 2025: Initial setup with in-memory storage
+- June 27, 2025: Migrated to PostgreSQL database with SQLAlchemy ORM
+  - Added User, Account, and JournalEntry database models
+  - Implemented persistent data storage
+  - Added comprehensive chart of accounts (41 default accounts)
+  - Maintained all existing functionality with database backend
 
 ## User Preferences
 

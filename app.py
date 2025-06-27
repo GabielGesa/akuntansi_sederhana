@@ -1,131 +1,143 @@
 import os
 import logging
-from datetime import datetime
+from datetime import datetime, date
 from decimal import Decimal, ROUND_HALF_UP
 from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify
 from werkzeug.security import generate_password_hash, check_password_hash
+from sqlalchemy import func, desc, and_, or_
+from models import db, User, Account, JournalEntry, init_default_data
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
 
+# Create Flask app
 app = Flask(__name__)
 app.secret_key = os.environ.get("SESSION_SECRET", "dev-secret-key-change-in-production")
 
-# In-memory data storage
-users_db = {
-    'admin': {
-        'password_hash': generate_password_hash('admin123'),
-        'role': 'admin',
-        'name': 'Administrator'
-    },
-    'user': {
-        'password_hash': generate_password_hash('user123'),
-        'role': 'user',
-        'name': 'User Akuntansi'
-    }
+# Configure database
+database_url = os.environ.get('DATABASE_URL')
+if not database_url:
+    raise RuntimeError("DATABASE_URL environment variable is not set")
+
+app.config['SQLALCHEMY_DATABASE_URI'] = database_url
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+    'pool_recycle': 300,
+    'pool_pre_ping': True,
 }
 
-# Chart of Accounts structure
-chart_of_accounts = {
-    '1000': {'name': 'Kas', 'type': 'Harta', 'subtype': 'Harta Lancar', 'balance': Decimal('0')},
-    '1100': {'name': 'Bank', 'type': 'Harta', 'subtype': 'Harta Lancar', 'balance': Decimal('0')},
-    '1200': {'name': 'Piutang Usaha', 'type': 'Harta', 'subtype': 'Harta Lancar', 'balance': Decimal('0')},
-    '1300': {'name': 'Persediaan', 'type': 'Harta', 'subtype': 'Harta Lancar', 'balance': Decimal('0')},
-    '1400': {'name': 'Peralatan', 'type': 'Harta', 'subtype': 'Harta Tetap', 'balance': Decimal('0')},
-    '1450': {'name': 'Akumulasi Penyusutan Peralatan', 'type': 'Harta', 'subtype': 'Harta Tetap', 'balance': Decimal('0')},
-    '2000': {'name': 'Utang Usaha', 'type': 'Kewajiban', 'subtype': 'Kewajiban Lancar', 'balance': Decimal('0')},
-    '2100': {'name': 'Utang Gaji', 'type': 'Kewajiban', 'subtype': 'Kewajiban Lancar', 'balance': Decimal('0')},
-    '3000': {'name': 'Modal Saham', 'type': 'Modal', 'subtype': 'Modal Disetor', 'balance': Decimal('0')},
-    '3100': {'name': 'Laba Ditahan', 'type': 'Modal', 'subtype': 'Laba Ditahan', 'balance': Decimal('0')},
-    '4000': {'name': 'Pendapatan Jasa', 'type': 'Pendapatan', 'subtype': 'Pendapatan Operasional', 'balance': Decimal('0')},
-    '4100': {'name': 'Pendapatan Bunga', 'type': 'Pendapatan', 'subtype': 'Pendapatan Non-Operasional', 'balance': Decimal('0')},
-    '5000': {'name': 'Beban Gaji', 'type': 'Beban', 'subtype': 'Beban Operasional', 'balance': Decimal('0')},
-    '5100': {'name': 'Beban Penyusutan', 'type': 'Beban', 'subtype': 'Beban Operasional', 'balance': Decimal('0')},
-    '5200': {'name': 'Beban Listrik', 'type': 'Beban', 'subtype': 'Beban Operasional', 'balance': Decimal('0')},
-}
+# Initialize database
+db.init_app(app)
 
-# Journal entries storage
-journal_entries = []
-adjusting_entries = []
-closing_entries = []
+# Create tables and initialize default data
+with app.app_context():
+    db.create_all()
+    init_default_data()
 
 # Utility functions
 def format_currency(amount):
     """Format amount as Indonesian Rupiah"""
     if amount is None:
-        amount = Decimal('0')
-    return f"Rp {amount:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.')
+        return "Rp 0"
+    
+    # Convert to Decimal for precise formatting
+    if isinstance(amount, (int, float)):
+        amount = Decimal(str(amount))
+    
+    # Round to 2 decimal places
+    amount = amount.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+    
+    # Format with thousand separators
+    formatted = "{:,.2f}".format(float(amount))
+    return f"Rp {formatted}"
 
-def get_account_balance(account_code):
+def get_account_balance(account_id):
     """Get current balance of an account"""
-    return chart_of_accounts.get(account_code, {}).get('balance', Decimal('0'))
+    account = Account.query.get(account_id)
+    if not account:
+        return Decimal('0')
+    
+    # Calculate balance from journal entries
+    debit_entries = db.session.query(func.coalesce(func.sum(JournalEntry.amount), 0)).filter_by(debit_account_id=account_id).scalar()
+    credit_entries = db.session.query(func.coalesce(func.sum(JournalEntry.amount), 0)).filter_by(credit_account_id=account_id).scalar()
+    
+    if account.normal_balance == 'debit':
+        return debit_entries - credit_entries
+    else:
+        return credit_entries - debit_entries
 
-def update_account_balance(account_code, amount, is_debit=True):
-    """Update account balance based on accounting rules"""
-    if account_code not in chart_of_accounts:
-        return False
-    
-    account_type = chart_of_accounts[account_code]['type']
-    current_balance = chart_of_accounts[account_code]['balance']
-    
-    # Normal balance rules:
-    # Assets (Harta) and Expenses (Beban): Debit increases, Credit decreases
-    # Liabilities (Kewajiban), Equity (Modal), Revenue (Pendapatan): Credit increases, Debit decreases
-    
-    if account_type in ['Harta', 'Beban']:
-        if is_debit:
-            chart_of_accounts[account_code]['balance'] = current_balance + amount
-        else:
-            chart_of_accounts[account_code]['balance'] = current_balance - amount
-    else:  # Kewajiban, Modal, Pendapatan
-        if is_debit:
-            chart_of_accounts[account_code]['balance'] = current_balance - amount
-        else:
-            chart_of_accounts[account_code]['balance'] = current_balance + amount
-    
-    return True
+def update_account_balances():
+    """Update all account balances"""
+    accounts = Account.query.all()
+    for account in accounts:
+        account.balance = get_account_balance(account.id)
+    db.session.commit()
 
 def calculate_trial_balance():
     """Calculate trial balance"""
+    accounts = Account.query.order_by(Account.code).all()
     trial_balance = []
     total_debit = Decimal('0')
     total_credit = Decimal('0')
     
-    for code, account in chart_of_accounts.items():
-        balance = account['balance']
-        debit_balance = Decimal('0')
-        credit_balance = Decimal('0')
+    for account in accounts:
+        balance = get_account_balance(account.id)
         
-        # Determine if balance goes to debit or credit side
-        if account['type'] in ['Harta', 'Beban']:
-            if balance >= 0:
-                debit_balance = balance
-                total_debit += balance
+        if balance != 0:
+            if account.normal_balance == 'debit' and balance > 0:
+                debit_amount = balance
+                credit_amount = Decimal('0')
+            elif account.normal_balance == 'debit' and balance < 0:
+                debit_amount = Decimal('0')
+                credit_amount = abs(balance)
+            elif account.normal_balance == 'credit' and balance > 0:
+                debit_amount = Decimal('0')
+                credit_amount = balance
             else:
-                credit_balance = abs(balance)
-                total_credit += abs(balance)
-        else:  # Kewajiban, Modal, Pendapatan
-            if balance >= 0:
-                credit_balance = balance
-                total_credit += balance
-            else:
-                debit_balance = abs(balance)
-                total_debit += abs(balance)
-        
-        trial_balance.append({
-            'code': code,
-            'name': account['name'],
-            'type': account['type'],
-            'debit': debit_balance,
-            'credit': credit_balance
-        })
+                debit_amount = abs(balance)
+                credit_amount = Decimal('0')
+            
+            trial_balance.append({
+                'code': account.code,
+                'name': account.name,
+                'debit': debit_amount,
+                'credit': credit_amount
+            })
+            
+            total_debit += debit_amount
+            total_credit += credit_amount
     
     return trial_balance, total_debit, total_credit
 
-# Authentication routes
+# Authentication decorators
+def login_required(f):
+    def decorated_function(*args, **kwargs):
+        if 'user_id' not in session:
+            flash('Silakan login terlebih dahulu', 'warning')
+            return redirect(url_for('login'))
+        return f(*args, **kwargs)
+    decorated_function.__name__ = f.__name__
+    return decorated_function
+
+def admin_required(f):
+    def decorated_function(*args, **kwargs):
+        if 'user_id' not in session:
+            flash('Silakan login terlebih dahulu', 'warning')
+            return redirect(url_for('login'))
+        
+        user = User.query.get(session['user_id'])
+        if not user or user.role != 'admin':
+            flash('Akses ditolak. Hanya admin yang dapat mengakses halaman ini.', 'error')
+            return redirect(url_for('dashboard'))
+        
+        return f(*args, **kwargs)
+    decorated_function.__name__ = f.__name__
+    return decorated_function
+
+# Routes
 @app.route('/')
 def index():
-    if 'username' in session:
+    if 'user_id' in session:
         return redirect(url_for('dashboard'))
     return redirect(url_for('login'))
 
@@ -135,11 +147,13 @@ def login():
         username = request.form['username']
         password = request.form['password']
         
-        if username in users_db and check_password_hash(users_db[username]['password_hash'], password):
-            session['username'] = username
-            session['role'] = users_db[username]['role']
-            session['name'] = users_db[username]['name']
-            flash('Login berhasil!', 'success')
+        user = User.query.filter_by(username=username).first()
+        
+        if user and user.check_password(password):
+            session['user_id'] = user.id
+            session['username'] = user.username
+            session['role'] = user.role
+            flash(f'Selamat datang, {username}!', 'success')
             return redirect(url_for('dashboard'))
         else:
             flash('Username atau password salah!', 'error')
@@ -149,350 +163,236 @@ def login():
 @app.route('/logout')
 def logout():
     session.clear()
-    flash('Logout berhasil!', 'success')
+    flash('Anda telah logout', 'info')
     return redirect(url_for('login'))
 
-# Main application routes
 @app.route('/dashboard')
+@login_required
 def dashboard():
-    if 'username' not in session:
-        return redirect(url_for('login'))
+    # Get summary statistics
+    total_accounts = Account.query.count()
+    total_entries = JournalEntry.query.count()
     
-    # Calculate summary statistics
-    total_assets = sum(acc['balance'] for acc in chart_of_accounts.values() if acc['type'] == 'Harta')
-    total_liabilities = sum(acc['balance'] for acc in chart_of_accounts.values() if acc['type'] == 'Kewajiban')
-    total_equity = sum(acc['balance'] for acc in chart_of_accounts.values() if acc['type'] == 'Modal')
-    total_revenue = sum(acc['balance'] for acc in chart_of_accounts.values() if acc['type'] == 'Pendapatan')
-    total_expenses = sum(acc['balance'] for acc in chart_of_accounts.values() if acc['type'] == 'Beban')
+    # Get recent journal entries
+    recent_entries = JournalEntry.query.order_by(desc(JournalEntry.created_at)).limit(5).all()
     
-    net_income = total_revenue - total_expenses
+    # Calculate total assets, liabilities, and equity
+    asset_accounts = Account.query.filter_by(account_type='Aset').all()
+    liability_accounts = Account.query.filter_by(account_type='Liabilitas').all()
+    equity_accounts = Account.query.filter_by(account_type='Ekuitas').all()
+    
+    total_assets = sum(get_account_balance(acc.id) for acc in asset_accounts)
+    total_liabilities = sum(get_account_balance(acc.id) for acc in liability_accounts)
+    total_equity = sum(get_account_balance(acc.id) for acc in equity_accounts)
     
     return render_template('dashboard.html',
+                         total_accounts=total_accounts,
+                         total_entries=total_entries,
+                         recent_entries=recent_entries,
                          total_assets=total_assets,
                          total_liabilities=total_liabilities,
                          total_equity=total_equity,
-                         total_revenue=total_revenue,
-                         total_expenses=total_expenses,
-                         net_income=net_income,
                          format_currency=format_currency)
 
 @app.route('/chart-of-accounts')
+@login_required
 def chart_of_accounts_view():
-    if 'username' not in session:
-        return redirect(url_for('login'))
+    accounts = Account.query.order_by(Account.code).all()
     
-    # Group accounts by type for better display
-    grouped_accounts = {}
-    for code, account in chart_of_accounts.items():
-        account_type = account['type']
-        if account_type not in grouped_accounts:
-            grouped_accounts[account_type] = []
-        grouped_accounts[account_type].append({
-            'code': code,
-            'name': account['name'],
-            'subtype': account['subtype'],
-            'balance': account['balance']
-        })
+    # Update balances
+    for account in accounts:
+        account.current_balance = get_account_balance(account.id)
     
-    return render_template('chart_of_accounts.html', 
-                         grouped_accounts=grouped_accounts,
-                         format_currency=format_currency)
+    return render_template('chart_of_accounts.html', accounts=accounts, format_currency=format_currency)
 
 @app.route('/add-account', methods=['GET', 'POST'])
+@admin_required
 def add_account():
-    if 'username' not in session or session['role'] != 'admin':
-        flash('Akses ditolak!', 'error')
-        return redirect(url_for('dashboard'))
-    
     if request.method == 'POST':
         code = request.form['code']
         name = request.form['name']
-        account_type = request.form['type']
-        subtype = request.form['subtype']
+        account_type = request.form['account_type']
+        normal_balance = request.form['normal_balance']
         
-        if code in chart_of_accounts:
+        # Check if account code already exists
+        existing_account = Account.query.filter_by(code=code).first()
+        if existing_account:
             flash('Kode akun sudah ada!', 'error')
-        else:
-            chart_of_accounts[code] = {
-                'name': name,
-                'type': account_type,
-                'subtype': subtype,
-                'balance': Decimal('0')
-            }
+            return render_template('add_account.html')
+        
+        # Create new account
+        new_account = Account()
+        new_account.code = code
+        new_account.name = name
+        new_account.account_type = account_type
+        new_account.normal_balance = normal_balance
+        
+        try:
+            db.session.add(new_account)
+            db.session.commit()
             flash('Akun berhasil ditambahkan!', 'success')
             return redirect(url_for('chart_of_accounts_view'))
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Terjadi kesalahan: {str(e)}', 'error')
     
     return render_template('add_account.html')
 
 @app.route('/journal-entry', methods=['GET', 'POST'])
+@login_required
 def journal_entry():
-    if 'username' not in session:
-        return redirect(url_for('login'))
-    
     if request.method == 'POST':
-        date = request.form['date']
+        entry_date = datetime.strptime(request.form['date'], '%Y-%m-%d').date()
         description = request.form['description']
+        debit_account_id = int(request.form['debit_account'])
+        credit_account_id = int(request.form['credit_account'])
+        amount = Decimal(request.form['amount'])
         
-        # Process journal entry lines
-        entry_lines = []
-        total_debit = Decimal('0')
-        total_credit = Decimal('0')
+        # Create journal entry
+        new_entry = JournalEntry()
+        new_entry.date = entry_date
+        new_entry.description = description
+        new_entry.debit_account_id = debit_account_id
+        new_entry.credit_account_id = credit_account_id
+        new_entry.amount = amount
+        new_entry.entry_type = 'general'
+        new_entry.created_by = session['user_id']
         
-        # Get all form fields for entry lines
-        i = 0
-        while f'account_{i}' in request.form:
-            account_code = request.form[f'account_{i}']
-            debit_amount = request.form.get(f'debit_{i}', '0')
-            credit_amount = request.form.get(f'credit_{i}', '0')
-            
-            if account_code and (debit_amount != '0' or credit_amount != '0'):
-                debit_amount = Decimal(debit_amount) if debit_amount else Decimal('0')
-                credit_amount = Decimal(credit_amount) if credit_amount else Decimal('0')
-                
-                entry_lines.append({
-                    'account_code': account_code,
-                    'account_name': chart_of_accounts[account_code]['name'],
-                    'debit': debit_amount,
-                    'credit': credit_amount
-                })
-                
-                total_debit += debit_amount
-                total_credit += credit_amount
-                
-                # Update account balances
-                if debit_amount > 0:
-                    update_account_balance(account_code, debit_amount, is_debit=True)
-                if credit_amount > 0:
-                    update_account_balance(account_code, credit_amount, is_debit=False)
-            
-            i += 1
-        
-        # Validate debit = credit
-        if total_debit != total_credit:
-            flash('Total debit harus sama dengan total kredit!', 'error')
-        elif entry_lines:
-            journal_entry_data = {
-                'id': len(journal_entries) + 1,
-                'date': date,
-                'description': description,
-                'lines': entry_lines,
-                'total_debit': total_debit,
-                'total_credit': total_credit,
-                'created_by': session['username'],
-                'created_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-            }
-            journal_entries.append(journal_entry_data)
-            flash('Jurnal umum berhasil disimpan!', 'success')
+        try:
+            db.session.add(new_entry)
+            db.session.commit()
+            flash('Jurnal berhasil ditambahkan!', 'success')
             return redirect(url_for('journal_entry'))
-        else:
-            flash('Minimal satu baris jurnal harus diisi!', 'error')
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Terjadi kesalahan: {str(e)}', 'error')
     
-    return render_template('journal_entry.html', accounts=chart_of_accounts)
+    accounts = Account.query.order_by(Account.code).all()
+    entries = JournalEntry.query.filter_by(entry_type='general').order_by(desc(JournalEntry.date)).all()
+    
+    return render_template('journal_entry.html', accounts=accounts, entries=entries, format_currency=format_currency)
 
 @app.route('/adjusting-entry', methods=['GET', 'POST'])
+@login_required
 def adjusting_entry():
-    if 'username' not in session:
-        return redirect(url_for('login'))
-    
     if request.method == 'POST':
-        date = request.form['date']
+        entry_date = datetime.strptime(request.form['date'], '%Y-%m-%d').date()
         description = request.form['description']
+        debit_account_id = int(request.form['debit_account'])
+        credit_account_id = int(request.form['credit_account'])
+        amount = Decimal(request.form['amount'])
         
-        # Process adjusting entry lines
-        entry_lines = []
-        total_debit = Decimal('0')
-        total_credit = Decimal('0')
+        new_entry = JournalEntry()
+        new_entry.date = entry_date
+        new_entry.description = description
+        new_entry.debit_account_id = debit_account_id
+        new_entry.credit_account_id = credit_account_id
+        new_entry.amount = amount
+        new_entry.entry_type = 'adjusting'
+        new_entry.created_by = session['user_id']
         
-        # Get all form fields for entry lines
-        i = 0
-        while f'account_{i}' in request.form:
-            account_code = request.form[f'account_{i}']
-            debit_amount = request.form.get(f'debit_{i}', '0')
-            credit_amount = request.form.get(f'credit_{i}', '0')
-            
-            if account_code and (debit_amount != '0' or credit_amount != '0'):
-                debit_amount = Decimal(debit_amount) if debit_amount else Decimal('0')
-                credit_amount = Decimal(credit_amount) if credit_amount else Decimal('0')
-                
-                entry_lines.append({
-                    'account_code': account_code,
-                    'account_name': chart_of_accounts[account_code]['name'],
-                    'debit': debit_amount,
-                    'credit': credit_amount
-                })
-                
-                total_debit += debit_amount
-                total_credit += credit_amount
-                
-                # Update account balances
-                if debit_amount > 0:
-                    update_account_balance(account_code, debit_amount, is_debit=True)
-                if credit_amount > 0:
-                    update_account_balance(account_code, credit_amount, is_debit=False)
-            
-            i += 1
-        
-        # Validate debit = credit
-        if total_debit != total_credit:
-            flash('Total debit harus sama dengan total kredit!', 'error')
-        elif entry_lines:
-            adjusting_entry_data = {
-                'id': len(adjusting_entries) + 1,
-                'date': date,
-                'description': description,
-                'lines': entry_lines,
-                'total_debit': total_debit,
-                'total_credit': total_credit,
-                'created_by': session['username'],
-                'created_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-            }
-            adjusting_entries.append(adjusting_entry_data)
-            flash('Jurnal penyesuaian berhasil disimpan!', 'success')
+        try:
+            db.session.add(new_entry)
+            db.session.commit()
+            flash('Jurnal penyesuaian berhasil ditambahkan!', 'success')
             return redirect(url_for('adjusting_entry'))
-        else:
-            flash('Minimal satu baris jurnal harus diisi!', 'error')
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Terjadi kesalahan: {str(e)}', 'error')
     
-    return render_template('adjusting_entry.html', accounts=chart_of_accounts)
+    accounts = Account.query.order_by(Account.code).all()
+    entries = JournalEntry.query.filter_by(entry_type='adjusting').order_by(desc(JournalEntry.date)).all()
+    
+    return render_template('adjusting_entry.html', accounts=accounts, entries=entries, format_currency=format_currency)
 
 @app.route('/closing-entry', methods=['GET', 'POST'])
+@login_required
 def closing_entry():
-    if 'username' not in session or session['role'] != 'admin':
-        flash('Akses ditolak!', 'error')
-        return redirect(url_for('dashboard'))
-    
     if request.method == 'POST':
-        date = request.form['date']
+        entry_date = datetime.strptime(request.form['date'], '%Y-%m-%d').date()
+        description = request.form['description']
+        debit_account_id = int(request.form['debit_account'])
+        credit_account_id = int(request.form['credit_account'])
+        amount = Decimal(request.form['amount'])
         
-        # Calculate net income
-        total_revenue = sum(acc['balance'] for acc in chart_of_accounts.values() if acc['type'] == 'Pendapatan')
-        total_expenses = sum(acc['balance'] for acc in chart_of_accounts.values() if acc['type'] == 'Beban')
-        net_income = total_revenue - total_expenses
+        new_entry = JournalEntry()
+        new_entry.date = entry_date
+        new_entry.description = description
+        new_entry.debit_account_id = debit_account_id
+        new_entry.credit_account_id = credit_account_id
+        new_entry.amount = amount
+        new_entry.entry_type = 'closing'
+        new_entry.created_by = session['user_id']
         
-        # Create closing entries
-        entry_lines = []
-        
-        # Close revenue accounts
-        for code, account in chart_of_accounts.items():
-            if account['type'] == 'Pendapatan' and account['balance'] != 0:
-                entry_lines.append({
-                    'account_code': code,
-                    'account_name': account['name'],
-                    'debit': account['balance'],
-                    'credit': Decimal('0')
-                })
-                # Zero out revenue account
-                chart_of_accounts[code]['balance'] = Decimal('0')
-        
-        # Close expense accounts
-        for code, account in chart_of_accounts.items():
-            if account['type'] == 'Beban' and account['balance'] != 0:
-                entry_lines.append({
-                    'account_code': code,
-                    'account_name': account['name'],
-                    'debit': Decimal('0'),
-                    'credit': account['balance']
-                })
-                # Zero out expense account
-                chart_of_accounts[code]['balance'] = Decimal('0')
-        
-        # Transfer net income to retained earnings
-        if net_income != 0:
-            retained_earnings_code = '3100'  # Laba Ditahan
-            entry_lines.append({
-                'account_code': retained_earnings_code,
-                'account_name': chart_of_accounts[retained_earnings_code]['name'],
-                'debit': Decimal('0') if net_income > 0 else abs(net_income),
-                'credit': net_income if net_income > 0 else Decimal('0')
-            })
-            # Update retained earnings balance
-            chart_of_accounts[retained_earnings_code]['balance'] += net_income
-        
-        closing_entry_data = {
-            'id': len(closing_entries) + 1,
-            'date': date,
-            'description': 'Jurnal Penutup - Tutup Buku Periode',
-            'lines': entry_lines,
-            'net_income': net_income,
-            'created_by': session['username'],
-            'created_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        }
-        closing_entries.append(closing_entry_data)
-        flash('Jurnal penutup berhasil dibuat!', 'success')
-        return redirect(url_for('closing_entry'))
+        try:
+            db.session.add(new_entry)
+            db.session.commit()
+            flash('Jurnal penutup berhasil ditambahkan!', 'success')
+            return redirect(url_for('closing_entry'))
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Terjadi kesalahan: {str(e)}', 'error')
     
-    # Calculate current period net income for preview
-    total_revenue = sum(acc['balance'] for acc in chart_of_accounts.values() if acc['type'] == 'Pendapatan')
-    total_expenses = sum(acc['balance'] for acc in chart_of_accounts.values() if acc['type'] == 'Beban')
-    net_income = total_revenue - total_expenses
+    accounts = Account.query.order_by(Account.code).all()
+    entries = JournalEntry.query.filter_by(entry_type='closing').order_by(desc(JournalEntry.date)).all()
     
-    return render_template('closing_entry.html', 
-                         total_revenue=total_revenue,
-                         total_expenses=total_expenses,
-                         net_income=net_income,
-                         format_currency=format_currency)
+    return render_template('closing_entry.html', accounts=accounts, entries=entries, format_currency=format_currency)
 
 @app.route('/general-ledger')
+@login_required
 def general_ledger():
-    if 'username' not in session:
-        return redirect(url_for('login'))
+    account_id = request.args.get('account_id')
     
-    # Build general ledger with transaction history
-    ledger_data = {}
+    if account_id:
+        account = Account.query.get(account_id)
+        if account:
+            # Get all entries for this account
+            debit_entries = JournalEntry.query.filter_by(debit_account_id=account_id).order_by(JournalEntry.date).all()
+            credit_entries = JournalEntry.query.filter_by(credit_account_id=account_id).order_by(JournalEntry.date).all()
+            
+            # Combine and sort entries
+            all_entries = []
+            for entry in debit_entries:
+                all_entries.append({
+                    'date': entry.date,
+                    'description': entry.description,
+                    'debit': entry.amount,
+                    'credit': Decimal('0'),
+                    'type': entry.entry_type
+                })
+            
+            for entry in credit_entries:
+                all_entries.append({
+                    'date': entry.date,
+                    'description': entry.description,
+                    'debit': Decimal('0'),
+                    'credit': entry.amount,
+                    'type': entry.entry_type
+                })
+            
+            # Sort by date
+            all_entries.sort(key=lambda x: x['date'])
+            
+            # Calculate running balance
+            balance = Decimal('0')
+            for entry in all_entries:
+                if account.normal_balance == 'debit':
+                    balance += entry['debit'] - entry['credit']
+                else:
+                    balance += entry['credit'] - entry['debit']
+                entry['balance'] = balance
+            
+            return render_template('general_ledger.html', 
+                                 account=account, 
+                                 entries=all_entries, 
+                                 format_currency=format_currency)
     
-    for code, account in chart_of_accounts.items():
-        ledger_data[code] = {
-            'name': account['name'],
-            'type': account['type'],
-            'transactions': [],
-            'balance': account['balance']
-        }
-    
-    # Add journal entries to ledger
-    for entry in journal_entries:
-        for line in entry['lines']:
-            ledger_data[line['account_code']]['transactions'].append({
-                'date': entry['date'],
-                'description': entry['description'],
-                'debit': line['debit'],
-                'credit': line['credit'],
-                'type': 'Jurnal Umum'
-            })
-    
-    # Add adjusting entries to ledger
-    for entry in adjusting_entries:
-        for line in entry['lines']:
-            ledger_data[line['account_code']]['transactions'].append({
-                'date': entry['date'],
-                'description': entry['description'],
-                'debit': line['debit'],
-                'credit': line['credit'],
-                'type': 'Jurnal Penyesuaian'
-            })
-    
-    # Add closing entries to ledger
-    for entry in closing_entries:
-        for line in entry['lines']:
-            ledger_data[line['account_code']]['transactions'].append({
-                'date': entry['date'],
-                'description': entry['description'],
-                'debit': line['debit'],
-                'credit': line['credit'],
-                'type': 'Jurnal Penutup'
-            })
-    
-    # Sort transactions by date
-    for code in ledger_data:
-        ledger_data[code]['transactions'].sort(key=lambda x: x['date'])
-    
-    return render_template('general_ledger.html', 
-                         ledger_data=ledger_data,
-                         format_currency=format_currency)
+    accounts = Account.query.order_by(Account.code).all()
+    return render_template('general_ledger.html', accounts=accounts)
 
 @app.route('/trial-balance')
+@login_required
 def trial_balance():
-    if 'username' not in session:
-        return redirect(url_for('login'))
-    
     trial_balance_data, total_debit, total_credit = calculate_trial_balance()
     
     return render_template('trial_balance.html',
@@ -502,201 +402,161 @@ def trial_balance():
                          format_currency=format_currency)
 
 @app.route('/income-statement')
+@login_required
 def income_statement():
-    if 'username' not in session:
-        return redirect(url_for('login'))
+    # Get revenue and expense accounts
+    revenue_accounts = Account.query.filter_by(account_type='Pendapatan').all()
+    expense_accounts = Account.query.filter_by(account_type='Beban').all()
     
-    # Calculate income statement
-    revenue_accounts = []
-    expense_accounts = []
+    revenues = []
+    expenses = []
     total_revenue = Decimal('0')
     total_expenses = Decimal('0')
     
-    for code, account in chart_of_accounts.items():
-        if account['type'] == 'Pendapatan':
-            revenue_accounts.append({
-                'code': code,
-                'name': account['name'],
-                'balance': account['balance']
+    for account in revenue_accounts:
+        balance = get_account_balance(account.id)
+        if balance != 0:
+            revenues.append({
+                'code': account.code,
+                'name': account.name,
+                'amount': balance
             })
-            total_revenue += account['balance']
-        elif account['type'] == 'Beban':
-            expense_accounts.append({
-                'code': code,
-                'name': account['name'],
-                'balance': account['balance']
+            total_revenue += balance
+    
+    for account in expense_accounts:
+        balance = get_account_balance(account.id)
+        if balance != 0:
+            expenses.append({
+                'code': account.code,
+                'name': account.name,
+                'amount': balance
             })
-            total_expenses += account['balance']
+            total_expenses += balance
     
     net_income = total_revenue - total_expenses
     
     return render_template('income_statement.html',
-                         revenue_accounts=revenue_accounts,
-                         expense_accounts=expense_accounts,
+                         revenues=revenues,
+                         expenses=expenses,
                          total_revenue=total_revenue,
                          total_expenses=total_expenses,
                          net_income=net_income,
                          format_currency=format_currency)
 
 @app.route('/balance-sheet')
+@login_required
 def balance_sheet():
-    if 'username' not in session:
-        return redirect(url_for('login'))
+    # Get accounts by type
+    asset_accounts = Account.query.filter_by(account_type='Aset').order_by(Account.code).all()
+    liability_accounts = Account.query.filter_by(account_type='Liabilitas').order_by(Account.code).all()
+    equity_accounts = Account.query.filter_by(account_type='Ekuitas').order_by(Account.code).all()
     
-    # Calculate balance sheet
-    asset_accounts = []
-    liability_accounts = []
-    equity_accounts = []
+    assets = []
+    liabilities = []
+    equity = []
+    
     total_assets = Decimal('0')
     total_liabilities = Decimal('0')
     total_equity = Decimal('0')
     
-    for code, account in chart_of_accounts.items():
-        if account['type'] == 'Harta':
-            asset_accounts.append({
-                'code': code,
-                'name': account['name'],
-                'subtype': account['subtype'],
-                'balance': account['balance']
+    for account in asset_accounts:
+        balance = get_account_balance(account.id)
+        if balance != 0:
+            assets.append({
+                'code': account.code,
+                'name': account.name,
+                'amount': balance
             })
-            total_assets += account['balance']
-        elif account['type'] == 'Kewajiban':
-            liability_accounts.append({
-                'code': code,
-                'name': account['name'],
-                'subtype': account['subtype'],
-                'balance': account['balance']
+            total_assets += balance
+    
+    for account in liability_accounts:
+        balance = get_account_balance(account.id)
+        if balance != 0:
+            liabilities.append({
+                'code': account.code,
+                'name': account.name,
+                'amount': balance
             })
-            total_liabilities += account['balance']
-        elif account['type'] == 'Modal':
-            equity_accounts.append({
-                'code': code,
-                'name': account['name'],
-                'subtype': account['subtype'],
-                'balance': account['balance']
+            total_liabilities += balance
+    
+    for account in equity_accounts:
+        balance = get_account_balance(account.id)
+        if balance != 0:
+            equity.append({
+                'code': account.code,
+                'name': account.name,
+                'amount': balance
             })
-            total_equity += account['balance']
+            total_equity += balance
     
     return render_template('balance_sheet.html',
-                         asset_accounts=asset_accounts,
-                         liability_accounts=liability_accounts,
-                         equity_accounts=equity_accounts,
+                         assets=assets,
+                         liabilities=liabilities,
+                         equity=equity,
                          total_assets=total_assets,
                          total_liabilities=total_liabilities,
                          total_equity=total_equity,
                          format_currency=format_currency)
 
 @app.route('/equity-statement')
+@login_required
 def equity_statement():
-    if 'username' not in session:
-        return redirect(url_for('login'))
+    # Get equity accounts
+    equity_accounts = Account.query.filter_by(account_type='Ekuitas').order_by(Account.code).all()
     
-    # Calculate equity statement
-    equity_accounts = []
+    equity_data = []
     total_equity = Decimal('0')
     
-    for code, account in chart_of_accounts.items():
-        if account['type'] == 'Modal':
-            equity_accounts.append({
-                'code': code,
-                'name': account['name'],
-                'subtype': account['subtype'],
-                'balance': account['balance']
+    for account in equity_accounts:
+        balance = get_account_balance(account.id)
+        if balance != 0:
+            equity_data.append({
+                'code': account.code,
+                'name': account.name,
+                'amount': balance
             })
-            total_equity += account['balance']
+            total_equity += balance
     
-    # Calculate current period net income
-    total_revenue = sum(acc['balance'] for acc in chart_of_accounts.values() if acc['type'] == 'Pendapatan')
-    total_expenses = sum(acc['balance'] for acc in chart_of_accounts.values() if acc['type'] == 'Beban')
+    # Get net income from income statement
+    revenue_accounts = Account.query.filter_by(account_type='Pendapatan').all()
+    expense_accounts = Account.query.filter_by(account_type='Beban').all()
+    
+    total_revenue = sum(get_account_balance(acc.id) for acc in revenue_accounts)
+    total_expenses = sum(get_account_balance(acc.id) for acc in expense_accounts)
     net_income = total_revenue - total_expenses
     
     return render_template('equity_statement.html',
-                         equity_accounts=equity_accounts,
+                         equity_data=equity_data,
                          total_equity=total_equity,
                          net_income=net_income,
                          format_currency=format_currency)
 
 @app.route('/search-entries')
+@login_required
 def search_entries():
-    if 'username' not in session:
-        return redirect(url_for('login'))
+    search_query = request.args.get('query', '')
+    entry_type = request.args.get('type', '')
     
-    # Get search parameters
-    search_date = request.args.get('date', '')
-    search_account = request.args.get('account', '')
-    search_description = request.args.get('description', '')
+    entries = JournalEntry.query
     
-    # Combine all entries for search
-    all_entries = []
+    if search_query:
+        entries = entries.filter(JournalEntry.description.ilike(f'%{search_query}%'))
     
-    # Add journal entries
-    for entry in journal_entries:
-        all_entries.append({
-            'type': 'Jurnal Umum',
-            'id': entry['id'],
-            'date': entry['date'],
-            'description': entry['description'],
-            'lines': entry['lines'],
-            'total_debit': entry['total_debit'],
-            'total_credit': entry['total_credit']
-        })
+    if entry_type:
+        entries = entries.filter_by(entry_type=entry_type)
     
-    # Add adjusting entries
-    for entry in adjusting_entries:
-        all_entries.append({
-            'type': 'Jurnal Penyesuaian',
-            'id': entry['id'],
-            'date': entry['date'],
-            'description': entry['description'],
-            'lines': entry['lines'],
-            'total_debit': entry['total_debit'],
-            'total_credit': entry['total_credit']
-        })
+    entries = entries.order_by(desc(JournalEntry.date)).all()
     
-    # Add closing entries
-    for entry in closing_entries:
-        all_entries.append({
-            'type': 'Jurnal Penutup',
-            'id': entry['id'],
-            'date': entry['date'],
-            'description': entry['description'],
-            'lines': entry['lines'],
-            'net_income': entry.get('net_income', Decimal('0'))
-        })
-    
-    # Filter entries based on search criteria
-    filtered_entries = []
-    for entry in all_entries:
-        include_entry = True
-        
-        if search_date and entry['date'] != search_date:
-            include_entry = False
-        
-        if search_description and search_description.lower() not in entry['description'].lower():
-            include_entry = False
-        
-        if search_account:
-            account_found = False
-            for line in entry['lines']:
-                if line['account_code'] == search_account:
-                    account_found = True
-                    break
-            if not account_found:
-                include_entry = False
-        
-        if include_entry:
-            filtered_entries.append(entry)
-    
-    # Sort by date (newest first)
-    filtered_entries.sort(key=lambda x: x['date'], reverse=True)
-    
-    return render_template('search_entries.html',
-                         entries=filtered_entries,
-                         accounts=chart_of_accounts,
-                         search_date=search_date,
-                         search_account=search_account,
-                         search_description=search_description,
+    return render_template('search_entries.html', 
+                         entries=entries, 
+                         search_query=search_query,
+                         entry_type=entry_type,
                          format_currency=format_currency)
 
+# Template filters
+@app.template_filter('currency')
+def currency_filter(amount):
+    return format_currency(amount)
+
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    app.run(debug=True, host='0.0.0.0', port=5000)
