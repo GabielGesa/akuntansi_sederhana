@@ -180,10 +180,15 @@ def dashboard():
     asset_accounts = Account.query.filter_by(account_type='Aset').all()
     liability_accounts = Account.query.filter_by(account_type='Liabilitas').all()
     equity_accounts = Account.query.filter_by(account_type='Ekuitas').all()
+    revenue_accounts = Account.query.filter_by(account_type='Pendapatan').all()
+    expense_accounts = Account.query.filter_by(account_type='Beban').all()
     
     total_assets = sum(get_account_balance(acc.id) for acc in asset_accounts)
     total_liabilities = sum(get_account_balance(acc.id) for acc in liability_accounts)
     total_equity = sum(get_account_balance(acc.id) for acc in equity_accounts)
+    total_revenue = sum(get_account_balance(acc.id) for acc in revenue_accounts)
+    total_expenses = sum(get_account_balance(acc.id) for acc in expense_accounts)
+    net_income = total_revenue - total_expenses
     
     return render_template('dashboard.html',
                          total_accounts=total_accounts,
@@ -192,6 +197,9 @@ def dashboard():
                          total_assets=total_assets,
                          total_liabilities=total_liabilities,
                          total_equity=total_equity,
+                         total_revenue=total_revenue,
+                         total_expenses=total_expenses,
+                         net_income=net_income,
                          format_currency=format_currency)
 
 @app.route('/chart-of-accounts')
