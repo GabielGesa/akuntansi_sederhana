@@ -1,4 +1,4 @@
-# Accounting Application for IIUC
+# Aplikasi Akuntansi
 
 ## Overview
 
