@@ -1,0 +1,174 @@
+{% extends "base.html" %}
+
+{% block title %}Pencarian Jurnal - Aplikasi Akuntansi IIUC{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h2><i class="fas fa-search me-2"></i>Pencarian Jurnal</h2>
+        <p class="text-muted">Cari dan filter data jurnal</p>
+    </div>
+</div>
+
+<!-- Search Form -->
+<div class="card mb-4">
+    <div class="card-header">
+        <h6><i class="fas fa-filter me-2"></i>Filter Pencarian</h6>
+    </div>
+    <div class="card-body">
+        <form method="GET">
+            <div class="row">
+                <div class="col-md-4">
+                    <label for="date" class="form-label">Tanggal</label>
+                    <input type="date" class="form-control" id="date" name="date" value="{{ search_date }}">
+                </div>
+                <div class="col-md-4">
+                    <label for="account" class="form-label">Akun</label>
+                    <select class="form-select" id="account" name="account">
+                        <option value="">Semua Akun</option>
+                        {% for code, account in accounts.items() %}
+                        <option value="{{ code }}" {{ 'selected' if search_account == code else '' }}>
+                            {{ code }} - {{ account.name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label for="description" class="form-label">Keterangan</label>
+                    <input type="text" class="form-control" id="description" name="description" 
+                           value="{{ search_description }}" placeholder="Cari dalam keterangan">
+                </div>
+            </div>
+            <div class="row mt-3">
+                <div class="col-12">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-search me-1"></i>Cari
+                    </button>
+                    <a href="{{ url_for('search_entries') }}" class="btn btn-secondary">
+                        <i class="fas fa-eraser me-1"></i>Reset
+                    </a>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Search Results -->
+<div class="card">
+    <div class="card-header">
+        <h6>Hasil Pencarian ({{ entries|length }} entri ditemukan)</h6>
+    </div>
+    <div class="card-body">
+        {% if entries %}
+            {% for entry in entries %}
+            <div class="card mb-3">
+                <div class="card-header">
+                    <div class="row align-items-center">
+                        <div class="col">
+                            <h6 class="mb-0">
+                                <span class="badge 
+                                    {% if entry.type == 'Jurnal Umum' %}bg-primary
+                                    {% elif entry.type == 'Jurnal Penyesuaian' %}bg-warning
+                                    {% elif entry.type == 'Jurnal Penutup' %}bg-danger
+                                    {% endif %}">
+                                    {{ entry.type }}
+                                </span>
+                                #{{ entry.id }} - {{ entry.date }}
+                            </h6>
+                        </div>
+                        <div class="col-auto">
+                            {% if entry.type != 'Jurnal Penutup' %}
+                            <small class="text-muted">
+                                Total: {{ format_currency(entry.total_debit) }}
+                            </small>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <p class="mb-2"><strong>{{ entry.description }}</strong></p>
+                    
+                    <div class="table-responsive">
+                        <table class="table table-sm">
+                            <tbody>
+                                {% for line in entry.lines %}
+                                <tr>
+                                    <td style="width: 40%">
+                                        <code>{{ line.account_code }}</code> - {{ line.account_name }}
+                                    </td>
+                                    <td style="width: 25%" class="text-end">
+                                        {% if line.debit > 0 %}
+                                            {{ format_currency(line.debit) }}
+                                        {% endif %}
+                                    </td>
+                                    <td style="width: 25%" class="text-end">
+                                        {% if line.credit > 0 %}
+                                            {{ format_currency(line.credit) }}
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    {% if entry.type == 'Jurnal Penutup' %}
+                    <div class="alert alert-info mt-2">
+                        <i class="fas fa-info-circle me-1"></i>
+                        {{ 'Laba Bersih' if entry.net_income >= 0 else 'Rugi Bersih' }}: 
+                        <strong class="{{ 'text-success' if entry.net_income >= 0 else 'text-danger' }}">
+                            {{ format_currency(entry.net_income) }}
+                        </strong>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        {% else %}
+            <div class="text-center py-5">
+                <i class="fas fa-search fa-3x text-muted mb-3"></i>
+                <h5 class="text-muted">Tidak ada data ditemukan</h5>
+                <p class="text-muted">Coba ubah kriteria pencarian atau buat jurnal baru.</p>
+                <a href="{{ url_for('journal_entry') }}" class="btn btn-primary">
+                    <i class="fas fa-plus me-1"></i>Buat Jurnal Baru
+                </a>
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Summary Statistics -->
+{% if entries %}
+<div class="row mt-4">
+    <div class="col-md-4">
+        <div class="card text-center">
+            <div class="card-body">
+                <i class="fas fa-list fa-2x text-primary mb-2"></i>
+                <h6 class="text-muted">Total Entri</h6>
+                <h5>{{ entries|length }}</h5>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card text-center">
+            <div class="card-body">
+                <i class="fas fa-edit fa-2x text-primary mb-2"></i>
+                <h6 class="text-muted">Jurnal Umum</h6>
+                <h5>{{ entries|selectattr('type', 'equalto', 'Jurnal Umum')|list|length }}</h5>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card text-center">
+            <div class="card-body">
+                <i class="fas fa-adjust fa-2x text-warning mb-2"></i>
+                <h6 class="text-muted">Jurnal Penyesuaian</h6>
+                <h5>{{ entries|selectattr('type', 'equalto', 'Jurnal Penyesuaian')|list|length }}</h5>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

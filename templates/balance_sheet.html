@@ -1,0 +1,187 @@
+{% extends "base.html" %}
+
+{% block title %}Neraca - Aplikasi Akuntansi IIUC{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h2><i class="fas fa-clipboard-list me-2"></i>Neraca</h2>
+                <p class="text-muted">Posisi keuangan perusahaan</p>
+            </div>
+            <div>
+                <button class="btn btn-secondary" onclick="window.print()">
+                    <i class="fas fa-print me-1"></i>Cetak
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header text-center">
+        <h5>NERACA</h5>
+        <p class="mb-0">Per {{ moment().strftime('%d %B %Y') if moment else '' }}</p>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            <!-- Assets Column -->
+            <div class="col-md-6">
+                <h6 class="text-success border-bottom pb-2">
+                    <i class="fas fa-wallet me-2"></i>HARTA
+                </h6>
+                
+                <!-- Group assets by subtype -->
+                {% set asset_groups = asset_accounts|groupby('subtype') %}
+                {% for subtype, accounts in asset_groups %}
+                <div class="mb-3">
+                    <strong class="text-muted">{{ subtype }}</strong>
+                    {% for account in accounts %}
+                    <div class="row ms-2">
+                        <div class="col-8">
+                            {{ account.name }}
+                        </div>
+                        <div class="col-4 text-end">
+                            {{ format_currency(account.balance) }}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endfor %}
+                
+                <div class="row border-top pt-2 mt-3">
+                    <div class="col-8">
+                        <strong>TOTAL HARTA</strong>
+                    </div>
+                    <div class="col-4 text-end">
+                        <strong class="text-success">{{ format_currency(total_assets) }}</strong>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Liabilities and Equity Column -->
+            <div class="col-md-6">
+                <!-- Liabilities Section -->
+                <h6 class="text-warning border-bottom pb-2">
+                    <i class="fas fa-credit-card me-2"></i>KEWAJIBAN
+                </h6>
+                
+                {% if liability_accounts %}
+                    {% set liability_groups = liability_accounts|groupby('subtype') %}
+                    {% for subtype, accounts in liability_groups %}
+                    <div class="mb-3">
+                        <strong class="text-muted">{{ subtype }}</strong>
+                        {% for account in accounts %}
+                        <div class="row ms-2">
+                            <div class="col-8">
+                                {{ account.name }}
+                            </div>
+                            <div class="col-4 text-end">
+                                {{ format_currency(account.balance) }}
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="text-muted ms-2">Tidak ada kewajiban</div>
+                {% endif %}
+                
+                <div class="row border-top pt-2 mt-2 mb-4">
+                    <div class="col-8">
+                        <strong>Total Kewajiban</strong>
+                    </div>
+                    <div class="col-4 text-end">
+                        <strong class="text-warning">{{ format_currency(total_liabilities) }}</strong>
+                    </div>
+                </div>
+                
+                <!-- Equity Section -->
+                <h6 class="text-info border-bottom pb-2">
+                    <i class="fas fa-chart-pie me-2"></i>MODAL
+                </h6>
+                
+                {% if equity_accounts %}
+                    {% set equity_groups = equity_accounts|groupby('subtype') %}
+                    {% for subtype, accounts in equity_groups %}
+                    <div class="mb-3">
+                        <strong class="text-muted">{{ subtype }}</strong>
+                        {% for account in accounts %}
+                        <div class="row ms-2">
+                            <div class="col-8">
+                                {{ account.name }}
+                            </div>
+                            <div class="col-4 text-end">
+                                {{ format_currency(account.balance) }}
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="text-muted ms-2">Tidak ada modal</div>
+                {% endif %}
+                
+                <div class="row border-top pt-2 mt-2 mb-3">
+                    <div class="col-8">
+                        <strong>Total Modal</strong>
+                    </div>
+                    <div class="col-4 text-end">
+                        <strong class="text-info">{{ format_currency(total_equity) }}</strong>
+                    </div>
+                </div>
+                
+                <div class="row border-top border-2 pt-3">
+                    <div class="col-8">
+                        <strong>TOTAL KEWAJIBAN & MODAL</strong>
+                    </div>
+                    <div class="col-4 text-end">
+                        <strong>{{ format_currency(total_liabilities + total_equity) }}</strong>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Balance Check -->
+<div class="card mt-4">
+    <div class="card-body">
+        {% set balance_difference = total_assets - (total_liabilities + total_equity) %}
+        {% if balance_difference == 0 %}
+        <div class="alert alert-success text-center">
+            <i class="fas fa-check-circle me-2"></i>
+            <strong>Neraca Seimbang</strong> - Harta = Kewajiban + Modal
+        </div>
+        {% else %}
+        <div class="alert alert-danger text-center">
+            <i class="fas fa-exclamation-triangle me-2"></i>
+            <strong>Neraca Tidak Seimbang</strong> - 
+            Selisih: {{ format_currency(balance_difference) }}
+        </div>
+        {% endif %}
+        
+        <div class="row text-center mt-3">
+            <div class="col-md-4">
+                <div class="border rounded p-3">
+                    <h6 class="text-success">Total Harta</h6>
+                    <h5>{{ format_currency(total_assets) }}</h5>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="border rounded p-3">
+                    <h6 class="text-warning">Total Kewajiban</h6>
+                    <h5>{{ format_currency(total_liabilities) }}</h5>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="border rounded p-3">
+                    <h6 class="text-info">Total Modal</h6>
+                    <h5>{{ format_currency(total_equity) }}</h5>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+
+{% block title %}Bagan Akun - Aplikasi Akuntansi IIUC{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2><i class="fas fa-chart-bar me-2"></i>Bagan Akun</h2>
+            {% if session.role == 'admin' %}
+            <a href="{{ url_for('add_account') }}" class="btn btn-primary">
+                <i class="fas fa-plus me-1"></i>Tambah Akun
+            </a>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+{% for account_type, accounts in grouped_accounts.items() %}
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="mb-0">
+            {% if account_type == 'Harta' %}
+                <i class="fas fa-wallet me-2"></i>
+            {% elif account_type == 'Kewajiban' %}
+                <i class="fas fa-credit-card me-2"></i>
+            {% elif account_type == 'Modal' %}
+                <i class="fas fa-chart-pie me-2"></i>
+            {% elif account_type == 'Pendapatan' %}
+                <i class="fas fa-arrow-up me-2"></i>
+            {% elif account_type == 'Beban' %}
+                <i class="fas fa-arrow-down me-2"></i>
+            {% endif %}
+            {{ account_type }}
+        </h5>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-striped">
+                <thead>
+                    <tr>
+                        <th>Kode</th>
+                        <th>Nama Akun</th>
+                        <th>Sub Klasifikasi</th>
+                        <th class="text-end">Saldo</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for account in accounts %}
+                    <tr>
+                        <td><code>{{ account.code }}</code></td>
+                        <td>{{ account.name }}</td>
+                        <td>{{ account.subtype }}</td>
+                        <td class="text-end">
+                            <span class="{{ 'text-success' if account.balance >= 0 else 'text-danger' }}">
+                                {{ format_currency(account.balance) }}
+                            </span>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endfor %}
+{% endblock %}

@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+
+{% block title %}Jurnal Penutup - Aplikasi Akuntansi IIUC{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h2><i class="fas fa-lock me-2"></i>Jurnal Penutup</h2>
+        <p class="text-muted">Tutup buku periode akuntansi</p>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h5>Preview Jurnal Penutup</h5>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle me-1"></i>
+                    <strong>Jurnal Penutup</strong> akan menutup semua akun pendapatan dan beban, 
+                    serta memindahkan laba/rugi ke akun Laba Ditahan.
+                </div>
+                
+                <div class="row text-center mb-4">
+                    <div class="col-md-4">
+                        <div class="card border-success">
+                            <div class="card-body">
+                                <h6 class="text-success">Total Pendapatan</h6>
+                                <h4 class="text-success">{{ format_currency(total_revenue) }}</h4>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card border-danger">
+                            <div class="card-body">
+                                <h6 class="text-danger">Total Beban</h6>
+                                <h4 class="text-danger">{{ format_currency(total_expenses) }}</h4>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card border-{{ 'success' if net_income >= 0 else 'danger' }}">
+                            <div class="card-body">
+                                <h6 class="{{ 'text-success' if net_income >= 0 else 'text-danger' }}">
+                                    {{ 'Laba Bersih' if net_income >= 0 else 'Rugi Bersih' }}
+                                </h6>
+                                <h4 class="{{ 'text-success' if net_income >= 0 else 'text-danger' }}">
+                                    {{ format_currency(net_income) }}
+                                </h4>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <form method="POST">
+                    <div class="mb-3">
+                        <label for="date" class="form-label">Tanggal Penutupan</label>
+                        <input type="date" class="form-control" id="date" name="date" required>
+                    </div>
+                    
+                    <div class="alert alert-warning">
+                        <i class="fas fa-exclamation-triangle me-1"></i>
+                        <strong>Peringatan:</strong> Proses tutup buku akan mengubah saldo semua akun pendapatan 
+                        dan beban menjadi nol, serta memindahkan laba/rugi ke Laba Ditahan. 
+                        Pastikan semua jurnal penyesuaian telah dibuat sebelum melakukan tutup buku.
+                    </div>
+                    
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                        <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">
+                            <i class="fas fa-arrow-left me-1"></i>Kembali
+                        </a>
+                        <button type="submit" class="btn btn-danger" 
+                                onclick="return confirm('Apakah Anda yakin ingin melakukan tutup buku? Proses ini tidak dapat dibatalkan.')">
+                            <i class="fas fa-lock me-1"></i>Proses Tutup Buku
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h6>Langkah Tutup Buku</h6>
+            </div>
+            <div class="card-body">
+                <ol class="list-unstyled">
+                    <li class="mb-2">
+                        <i class="fas fa-check-circle text-success me-2"></i>
+                        <small>Tutup akun pendapatan</small>
+                    </li>
+                    <li class="mb-2">
+                        <i class="fas fa-check-circle text-success me-2"></i>
+                        <small>Tutup akun beban</small>
+                    </li>
+                    <li class="mb-2">
+                        <i class="fas fa-check-circle text-success me-2"></i>
+                        <small>Transfer laba/rugi ke Laba Ditahan</small>
+                    </li>
+                    <li class="mb-2">
+                        <i class="fas fa-info-circle text-info me-2"></i>
+                        <small>Akun neraca tetap terbuka</small>
+                    </li>
+                </ol>
+            </div>
+        </div>
+        
+        <div class="card mt-3">
+            <div class="card-header">
+                <h6>Akun Yang Akan Ditutup</h6>
+            </div>
+            <div class="card-body">
+                <h6 class="text-success">Pendapatan:</h6>
+                <ul class="list-unstyled small">
+                    {% for code, account in chart_of_accounts.items() %}
+                        {% if account.type == 'Pendapatan' and account.balance != 0 %}
+                        <li>• {{ account.name }}: {{ format_currency(account.balance) }}</li>
+                        {% endif %}
+                    {% endfor %}
+                </ul>
+                
+                <h6 class="text-danger mt-3">Beban:</h6>
+                <ul class="list-unstyled small">
+                    {% for code, account in chart_of_accounts.items() %}
+                        {% if account.type == 'Beban' and account.balance != 0 %}
+                        <li>• {{ account.name }}: {{ format_currency(account.balance) }}</li>
+                        {% endif %}
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Set today's date
+    document.getElementById('date').value = new Date().toISOString().split('T')[0];
+});
+</script>
+{% endblock %}

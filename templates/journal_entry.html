@@ -1,0 +1,236 @@
+{% extends "base.html" %}
+
+{% block title %}Jurnal Umum - Aplikasi Akuntansi IIUC{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h2><i class="fas fa-edit me-2"></i>Jurnal Umum</h2>
+        <p class="text-muted">Input transaksi jurnal umum</p>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h5>Input Jurnal Baru</h5>
+    </div>
+    <div class="card-body">
+        <form method="POST" id="journalForm">
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <label for="date" class="form-label">Tanggal</label>
+                    <input type="date" class="form-control" id="date" name="date" required 
+                           value="{{ moment().strftime('%Y-%m-%d') if moment else '' }}">
+                </div>
+                <div class="col-md-6">
+                    <label for="description" class="form-label">Keterangan</label>
+                    <input type="text" class="form-control" id="description" name="description" required
+                           placeholder="Keterangan transaksi">
+                </div>
+            </div>
+            
+            <div class="table-responsive">
+                <table class="table table-bordered" id="journalTable">
+                    <thead>
+                        <tr>
+                            <th style="width: 40%">Akun</th>
+                            <th style="width: 25%">Debit</th>
+                            <th style="width: 25%">Kredit</th>
+                            <th style="width: 10%">Aksi</th>
+                        </tr>
+                    </thead>
+                    <tbody id="journalRows">
+                        <tr>
+                            <td>
+                                <select class="form-select" name="account_0" required>
+                                    <option value="">Pilih Akun</option>
+                                    {% for code, account in accounts.items() %}
+                                    <option value="{{ code }}">{{ code }} - {{ account.name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </td>
+                            <td>
+                                <input type="number" class="form-control debit-input" name="debit_0" 
+                                       step="0.01" min="0" placeholder="0.00">
+                            </td>
+                            <td>
+                                <input type="number" class="form-control credit-input" name="credit_0" 
+                                       step="0.01" min="0" placeholder="0.00">
+                            </td>
+                            <td>
+                                <button type="button" class="btn btn-sm btn-danger" onclick="removeRow(this)">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </td>
+                        </tr>
+                    </tbody>
+                    <tfoot>
+                        <tr class="table-secondary">
+                            <th>Total</th>
+                            <th><span id="totalDebit">0.00</span></th>
+                            <th><span id="totalCredit">0.00</span></th>
+                            <th></th>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+            
+            <div class="row mb-3">
+                <div class="col-12">
+                    <button type="button" class="btn btn-secondary" onclick="addRow()">
+                        <i class="fas fa-plus me-1"></i>Tambah Baris
+                    </button>
+                </div>
+            </div>
+            
+            <div id="balanceAlert" class="alert alert-warning d-none">
+                <i class="fas fa-exclamation-triangle me-1"></i>
+                Total debit harus sama dengan total kredit!
+            </div>
+            
+            <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                <button type="button" class="btn btn-secondary" onclick="clearForm()">
+                    <i class="fas fa-eraser me-1"></i>Bersihkan
+                </button>
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-save me-1"></i>Simpan Jurnal
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+let rowCount = 1;
+
+function addRow() {
+    const tbody = document.getElementById('journalRows');
+    const newRow = document.createElement('tr');
+    
+    newRow.innerHTML = `
+        <td>
+            <select class="form-select" name="account_${rowCount}" required>
+                <option value="">Pilih Akun</option>
+                {% for code, account in accounts.items() %}
+                <option value="{{ code }}">{{ code }} - {{ account.name }}</option>
+                {% endfor %}
+            </select>
+        </td>
+        <td>
+            <input type="number" class="form-control debit-input" name="debit_${rowCount}" 
+                   step="0.01" min="0" placeholder="0.00">
+        </td>
+        <td>
+            <input type="number" class="form-control credit-input" name="credit_${rowCount}" 
+                   step="0.01" min="0" placeholder="0.00">
+        </td>
+        <td>
+            <button type="button" class="btn btn-sm btn-danger" onclick="removeRow(this)">
+                <i class="fas fa-trash"></i>
+            </button>
+        </td>
+    `;
+    
+    tbody.appendChild(newRow);
+    rowCount++;
+    
+    // Add event listeners for new inputs
+    addInputListeners(newRow);
+}
+
+function removeRow(button) {
+    const row = button.closest('tr');
+    if (document.querySelectorAll('#journalRows tr').length > 1) {
+        row.remove();
+        calculateTotals();
+    }
+}
+
+function addInputListeners(row) {
+    const debitInput = row.querySelector('.debit-input');
+    const creditInput = row.querySelector('.credit-input');
+    
+    debitInput.addEventListener('input', function() {
+        if (this.value) {
+            creditInput.value = '';
+        }
+        calculateTotals();
+    });
+    
+    creditInput.addEventListener('input', function() {
+        if (this.value) {
+            debitInput.value = '';
+        }
+        calculateTotals();
+    });
+}
+
+function calculateTotals() {
+    let totalDebit = 0;
+    let totalCredit = 0;
+    
+    document.querySelectorAll('.debit-input').forEach(input => {
+        if (input.value) {
+            totalDebit += parseFloat(input.value);
+        }
+    });
+    
+    document.querySelectorAll('.credit-input').forEach(input => {
+        if (input.value) {
+            totalCredit += parseFloat(input.value);
+        }
+    });
+    
+    document.getElementById('totalDebit').textContent = totalDebit.toFixed(2);
+    document.getElementById('totalCredit').textContent = totalCredit.toFixed(2);
+    
+    const balanceAlert = document.getElementById('balanceAlert');
+    if (totalDebit !== totalCredit && (totalDebit > 0 || totalCredit > 0)) {
+        balanceAlert.classList.remove('d-none');
+    } else {
+        balanceAlert.classList.add('d-none');
+    }
+}
+
+function clearForm() {
+    document.getElementById('journalForm').reset();
+    const tbody = document.getElementById('journalRows');
+    tbody.innerHTML = `
+        <tr>
+            <td>
+                <select class="form-select" name="account_0" required>
+                    <option value="">Pilih Akun</option>
+                    {% for code, account in accounts.items() %}
+                    <option value="{{ code }}">{{ code }} - {{ account.name }}</option>
+                    {% endfor %}
+                </select>
+            </td>
+            <td>
+                <input type="number" class="form-control debit-input" name="debit_0" 
+                       step="0.01" min="0" placeholder="0.00">
+            </td>
+            <td>
+                <input type="number" class="form-control credit-input" name="credit_0" 
+                       step="0.01" min="0" placeholder="0.00">
+            </td>
+            <td>
+                <button type="button" class="btn btn-sm btn-danger" onclick="removeRow(this)">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </td>
+        </tr>
+    `;
+    rowCount = 1;
+    calculateTotals();
+    addInputListeners(tbody.querySelector('tr'));
+}
+
+// Initialize
+document.addEventListener('DOMContentLoaded', function() {
+    addInputListeners(document.querySelector('#journalRows tr'));
+    
+    // Set today's date
+    document.getElementById('date').value = new Date().toISOString().split('T')[0];
+});
+</script>
+{% endblock %}

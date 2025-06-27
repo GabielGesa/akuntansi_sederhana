@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+
+{% block title %}Buku Besar - Aplikasi Akuntansi IIUC{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h2><i class="fas fa-book me-2"></i>Buku Besar</h2>
+        <p class="text-muted">Rincian transaksi per akun</p>
+    </div>
+</div>
+
+{% for code, ledger in ledger_data.items() %}
+    {% if ledger.transactions %}
+    <div class="card mb-4">
+        <div class="card-header">
+            <div class="row align-items-center">
+                <div class="col">
+                    <h6 class="mb-0">
+                        <code>{{ code }}</code> - {{ ledger.name }}
+                        <span class="badge bg-secondary ms-2">{{ ledger.type }}</span>
+                    </h6>
+                </div>
+                <div class="col-auto">
+                    <strong>Saldo: 
+                        <span class="{{ 'text-success' if ledger.balance >= 0 else 'text-danger' }}">
+                            {{ format_currency(ledger.balance) }}
+                        </span>
+                    </strong>
+                </div>
+            </div>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-sm">
+                    <thead>
+                        <tr>
+                            <th>Tanggal</th>
+                            <th>Keterangan</th>
+                            <th>Jenis</th>
+                            <th class="text-end">Debit</th>
+                            <th class="text-end">Kredit</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for transaction in ledger.transactions %}
+                        <tr>
+                            <td>{{ transaction.date }}</td>
+                            <td>{{ transaction.description }}</td>
+                            <td>
+                                <span class="badge 
+                                    {% if transaction.type == 'Jurnal Umum' %}bg-primary
+                                    {% elif transaction.type == 'Jurnal Penyesuaian' %}bg-warning
+                                    {% elif transaction.type == 'Jurnal Penutup' %}bg-danger
+                                    {% endif %}">
+                                    {{ transaction.type }}
+                                </span>
+                            </td>
+                            <td class="text-end">
+                                {% if transaction.debit > 0 %}
+                                    {{ format_currency(transaction.debit) }}
+                                {% endif %}
+                            </td>
+                            <td class="text-end">
+                                {% if transaction.credit > 0 %}
+                                    {{ format_currency(transaction.credit) }}
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+{% endfor %}
+
+{% if not any(ledger.transactions for ledger in ledger_data.values()) %}
+<div class="card">
+    <div class="card-body text-center py-5">
+        <i class="fas fa-book fa-3x text-muted mb-3"></i>
+        <h5 class="text-muted">Belum ada transaksi</h5>
+        <p class="text-muted">Silakan input jurnal terlebih dahulu untuk melihat buku besar.</p>
+        <a href="{{ url_for('journal_entry') }}" class="btn btn-primary">
+            <i class="fas fa-plus me-1"></i>Input Jurnal
+        </a>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

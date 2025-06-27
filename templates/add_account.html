@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+
+{% block title %}Tambah Akun - Aplikasi Akuntansi IIUC{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h4><i class="fas fa-plus me-2"></i>Tambah Akun Baru</h4>
+            </div>
+            <div class="card-body">
+                <form method="POST">
+                    <div class="mb-3">
+                        <label for="code" class="form-label">Kode Akun</label>
+                        <input type="text" class="form-control" id="code" name="code" required 
+                               placeholder="Contoh: 5300">
+                        <div class="form-text">Masukkan kode akun unik (4 digit)</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="name" class="form-label">Nama Akun</label>
+                        <input type="text" class="form-control" id="name" name="name" required
+                               placeholder="Contoh: Beban Telepon">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="type" class="form-label">Jenis Akun</label>
+                        <select class="form-select" id="type" name="type" required onchange="updateSubtypes()">
+                            <option value="">Pilih Jenis Akun</option>
+                            <option value="Harta">Harta (Assets)</option>
+                            <option value="Kewajiban">Kewajiban (Liabilities)</option>
+                            <option value="Modal">Modal (Equity)</option>
+                            <option value="Pendapatan">Pendapatan (Revenue)</option>
+                            <option value="Beban">Beban (Expenses)</option>
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="subtype" class="form-label">Sub Klasifikasi</label>
+                        <select class="form-select" id="subtype" name="subtype" required>
+                            <option value="">Pilih Sub Klasifikasi</option>
+                        </select>
+                    </div>
+                    
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                        <a href="{{ url_for('chart_of_accounts_view') }}" class="btn btn-secondary">
+                            <i class="fas fa-arrow-left me-1"></i>Kembali
+                        </a>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save me-1"></i>Simpan
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function updateSubtypes() {
+    const typeSelect = document.getElementById('type');
+    const subtypeSelect = document.getElementById('subtype');
+    const selectedType = typeSelect.value;
+    
+    // Clear existing options
+    subtypeSelect.innerHTML = '<option value="">Pilih Sub Klasifikasi</option>';
+    
+    const subtypes = {
+        'Harta': ['Harta Lancar', 'Harta Tetap', 'Harta Tidak Berwujud'],
+        'Kewajiban': ['Kewajiban Lancar', 'Kewajiban Jangka Panjang'],
+        'Modal': ['Modal Disetor', 'Laba Ditahan', 'Modal Lainnya'],
+        'Pendapatan': ['Pendapatan Operasional', 'Pendapatan Non-Operasional'],
+        'Beban': ['Beban Operasional', 'Beban Non-Operasional']
+    };
+    
+    if (selectedType && subtypes[selectedType]) {
+        subtypes[selectedType].forEach(subtype => {
+            const option = document.createElement('option');
+            option.value = subtype;
+            option.textContent = subtype;
+            subtypeSelect.appendChild(option);
+        });
+    }
+}
+</script>
+{% endblock %}

@@ -1,0 +1,305 @@
+/* Custom CSS for Accounting Application */
+/* Complementing Bootstrap Dark Theme */
+
+/* Custom accounting-specific styles */
+.accounting-card {
+    border-left: 4px solid var(--bs-primary);
+    transition: border-color 0.3s ease;
+}
+
+.accounting-card:hover {
+    border-left-color: var(--bs-success);
+}
+
+/* Journal entry table enhancements */
+.journal-table {
+    border: 2px solid var(--bs-border-color);
+}
+
+.journal-table th {
+    background-color: var(--bs-secondary-bg);
+    border-bottom: 2px solid var(--bs-border-color);
+}
+
+.journal-table .debit-column {
+    background-color: rgba(var(--bs-success-rgb), 0.1);
+}
+
+.journal-table .credit-column {
+    background-color: rgba(var(--bs-danger-rgb), 0.1);
+}
+
+/* Balance indicators */
+.balance-positive {
+    color: var(--bs-success) !important;
+}
+
+.balance-negative {
+    color: var(--bs-danger) !important;
+}
+
+.balance-zero {
+    color: var(--bs-secondary) !important;
+}
+
+/* Account type badges */
+.badge-harta {
+    background-color: var(--bs-success) !important;
+}
+
+.badge-kewajiban {
+    background-color: var(--bs-warning) !important;
+}
+
+.badge-modal {
+    background-color: var(--bs-info) !important;
+}
+
+.badge-pendapatan {
+    background-color: var(--bs-primary) !important;
+}
+
+.badge-beban {
+    background-color: var(--bs-danger) !important;
+}
+
+/* Financial report styling */
+.financial-report {
+    background-color: var(--bs-body-bg);
+    border: 1px solid var(--bs-border-color);
+}
+
+.financial-report h5 {
+    color: var(--bs-heading-color);
+    border-bottom: 2px solid var(--bs-primary);
+    padding-bottom: 0.5rem;
+    margin-bottom: 1rem;
+}
+
+.financial-section {
+    margin-bottom: 2rem;
+}
+
+.financial-total {
+    border-top: 2px solid var(--bs-border-color);
+    border-bottom: 2px solid var(--bs-border-color);
+    font-weight: bold;
+}
+
+/* Dashboard cards */
+.dashboard-card {
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.dashboard-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+.dashboard-icon {
+    opacity: 0.8;
+    transition: opacity 0.3s ease;
+}
+
+.dashboard-card:hover .dashboard-icon {
+    opacity: 1;
+}
+
+/* Form validation styling */
+.form-control.is-invalid {
+    border-color: var(--bs-danger);
+    box-shadow: 0 0 0 0.2rem rgba(var(--bs-danger-rgb), 0.25);
+}
+
+.form-control.is-valid {
+    border-color: var(--bs-success);
+    box-shadow: 0 0 0 0.2rem rgba(var(--bs-success-rgb), 0.25);
+}
+
+/* Balance alert styling */
+.balance-alert {
+    border-left: 4px solid var(--bs-warning);
+    background-color: rgba(var(--bs-warning-rgb), 0.1);
+}
+
+.balance-success {
+    border-left: 4px solid var(--bs-success);
+    background-color: rgba(var(--bs-success-rgb), 0.1);
+}
+
+/* Table improvements */
+.table-accounting {
+    border: 1px solid var(--bs-border-color);
+}
+
+.table-accounting th {
+    background-color: var(--bs-tertiary-bg);
+    border-bottom: 2px solid var(--bs-border-color);
+    font-weight: 600;
+}
+
+.table-accounting .table-total {
+    background-color: var(--bs-secondary-bg);
+    font-weight: bold;
+    border-top: 2px solid var(--bs-border-color);
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .journal-table {
+        font-size: 0.875rem;
+    }
+    
+    .dashboard-card {
+        margin-bottom: 1rem;
+    }
+    
+    .financial-report {
+        padding: 1rem;
+    }
+}
+
+/* Print styles */
+@media print {
+    .navbar,
+    .btn,
+    .alert {
+        display: none !important;
+    }
+    
+    .card {
+        border: 1px solid #000 !important;
+        box-shadow: none !important;
+    }
+    
+    .card-header {
+        background-color: #f8f9fa !important;
+        color: #000 !important;
+    }
+    
+    .table {
+        border: 1px solid #000 !important;
+    }
+    
+    .table th,
+    .table td {
+        border: 1px solid #000 !important;
+        color: #000 !important;
+    }
+    
+    body {
+        background-color: #fff !important;
+        color: #000 !important;
+    }
+}
+
+/* Custom scrollbar for tables */
+.table-responsive::-webkit-scrollbar {
+    height: 8px;
+}
+
+.table-responsive::-webkit-scrollbar-track {
+    background: var(--bs-tertiary-bg);
+    border-radius: 4px;
+}
+
+.table-responsive::-webkit-scrollbar-thumb {
+    background: var(--bs-secondary);
+    border-radius: 4px;
+}
+
+.table-responsive::-webkit-scrollbar-thumb:hover {
+    background: var(--bs-primary);
+}
+
+/* Loading states */
+.loading {
+    opacity: 0.6;
+    pointer-events: none;
+}
+
+.loading-spinner {
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    border: 2px solid var(--bs-border-color);
+    border-radius: 50%;
+    border-top-color: var(--bs-primary);
+    animation: spin 1s ease-in-out infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* Currency formatting */
+.currency {
+    font-family: 'Courier New', monospace;
+    font-weight: 500;
+}
+
+/* Status indicators */
+.status-balanced {
+    color: var(--bs-success);
+}
+
+.status-unbalanced {
+    color: var(--bs-danger);
+}
+
+.status-pending {
+    color: var(--bs-warning);
+}
+
+/* Custom button variants */
+.btn-outline-success:hover {
+    background-color: var(--bs-success);
+    border-color: var(--bs-success);
+}
+
+.btn-outline-danger:hover {
+    background-color: var(--bs-danger);
+    border-color: var(--bs-danger);
+}
+
+/* Account code styling */
+code {
+    background-color: var(--bs-secondary-bg);
+    color: var(--bs-body-color);
+    padding: 0.2rem 0.4rem;
+    border-radius: 0.25rem;
+    font-size: 0.875em;
+}
+
+/* Tooltip improvements */
+.tooltip {
+    font-size: 0.875rem;
+}
+
+.tooltip-inner {
+    background-color: var(--bs-dark);
+    color: var(--bs-light);
+}
+
+/* Focus states */
+.form-control:focus,
+.form-select:focus {
+    border-color: var(--bs-primary);
+    box-shadow: 0 0 0 0.2rem rgba(var(--bs-primary-rgb), 0.25);
+}
+
+/* Error states */
+.error-message {
+    color: var(--bs-danger);
+    font-size: 0.875rem;
+    margin-top: 0.25rem;
+}
+
+/* Success states */
+.success-message {
+    color: var(--bs-success);
+    font-size: 0.875rem;
+    margin-top: 0.25rem;
+}

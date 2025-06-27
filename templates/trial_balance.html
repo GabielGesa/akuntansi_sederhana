@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+
+{% block title %}Neraca Saldo - Aplikasi Akuntansi IIUC{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h2><i class="fas fa-balance-scale me-2"></i>Neraca Saldo</h2>
+                <p class="text-muted">Daftar saldo semua akun pada tanggal tertentu</p>
+            </div>
+            <div>
+                <button class="btn btn-secondary" onclick="window.print()">
+                    <i class="fas fa-print me-1"></i>Cetak
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header text-center">
+        <h5>NERACA SALDO</h5>
+        <p class="mb-0">Per {{ moment().strftime('%d %B %Y') if moment else '' }}</p>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-striped">
+                <thead>
+                    <tr>
+                        <th>Kode</th>
+                        <th>Nama Akun</th>
+                        <th>Klasifikasi</th>
+                        <th class="text-end">Debit</th>
+                        <th class="text-end">Kredit</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for account in trial_balance %}
+                    <tr>
+                        <td><code>{{ account.code }}</code></td>
+                        <td>{{ account.name }}</td>
+                        <td>
+                            <span class="badge 
+                                {% if account.type == 'Harta' %}bg-success
+                                {% elif account.type == 'Kewajiban' %}bg-warning
+                                {% elif account.type == 'Modal' %}bg-info
+                                {% elif account.type == 'Pendapatan' %}bg-primary
+                                {% elif account.type == 'Beban' %}bg-danger
+                                {% endif %}">
+                                {{ account.type }}
+                            </span>
+                        </td>
+                        <td class="text-end">
+                            {% if account.debit > 0 %}
+                                {{ format_currency(account.debit) }}
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
+                        <td class="text-end">
+                            {% if account.credit > 0 %}
+                                {{ format_currency(account.credit) }}
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                <tfoot class="table-dark">
+                    <tr>
+                        <th colspan="3">TOTAL</th>
+                        <th class="text-end">{{ format_currency(total_debit) }}</th>
+                        <th class="text-end">{{ format_currency(total_credit) }}</th>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+        
+        {% if total_debit == total_credit %}
+        <div class="alert alert-success text-center">
+            <i class="fas fa-check-circle me-2"></i>
+            <strong>Neraca Saldo Seimbang</strong> - Total Debit = Total Kredit
+        </div>
+        {% else %}
+        <div class="alert alert-danger text-center">
+            <i class="fas fa-exclamation-triangle me-2"></i>
+            <strong>Neraca Saldo Tidak Seimbang</strong> - 
+            Selisih: {{ format_currency(total_debit - total_credit) }}
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-md-4">
+        <div class="card text-center">
+            <div class="card-body">
+                <i class="fas fa-wallet fa-2x text-success mb-2"></i>
+                <h6>Total Harta</h6>
+                <h5 class="text-success">
+                    {{ format_currency(trial_balance|selectattr('type', 'equalto', 'Harta')|sum(attribute='debit') - trial_balance|selectattr('type', 'equalto', 'Harta')|sum(attribute='credit')) }}
+                </h5>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card text-center">
+            <div class="card-body">
+                <i class="fas fa-credit-card fa-2x text-warning mb-2"></i>
+                <h6>Total Kewajiban</h6>
+                <h5 class="text-warning">
+                    {{ format_currency(trial_balance|selectattr('type', 'equalto', 'Kewajiban')|sum(attribute='credit') - trial_balance|selectattr('type', 'equalto', 'Kewajiban')|sum(attribute='debit')) }}
+                </h5>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card text-center">
+            <div class="card-body">
+                <i class="fas fa-chart-pie fa-2x text-info mb-2"></i>
+                <h6>Total Modal</h6>
+                <h5 class="text-info">
+                    {{ format_currency(trial_balance|selectattr('type', 'equalto', 'Modal')|sum(attribute='credit') - trial_balance|selectattr('type', 'equalto', 'Modal')|sum(attribute='debit')) }}
+                </h5>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

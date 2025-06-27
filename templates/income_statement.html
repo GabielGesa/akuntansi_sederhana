@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+
+{% block title %}Laporan Laba Rugi - Aplikasi Akuntansi IIUC{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h2><i class="fas fa-chart-line me-2"></i>Laporan Laba Rugi</h2>
+                <p class="text-muted">Laporan kinerja keuangan perusahaan</p>
+            </div>
+            <div>
+                <button class="btn btn-secondary" onclick="window.print()">
+                    <i class="fas fa-print me-1"></i>Cetak
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header text-center">
+        <h5>LAPORAN LABA RUGI</h5>
+        <p class="mb-0">Untuk Periode yang Berakhir {{ moment().strftime('%d %B %Y') if moment else '' }}</p>
+    </div>
+    <div class="card-body">
+        <!-- Revenue Section -->
+        <div class="mb-4">
+            <h6 class="text-success border-bottom pb-2">
+                <i class="fas fa-arrow-up me-2"></i>PENDAPATAN
+            </h6>
+            {% if revenue_accounts %}
+                {% for account in revenue_accounts %}
+                <div class="row">
+                    <div class="col-8">
+                        <span class="ms-3">{{ account.name }}</span>
+                    </div>
+                    <div class="col-4 text-end">
+                        {{ format_currency(account.balance) }}
+                    </div>
+                </div>
+                {% endfor %}
+                <div class="row border-top pt-2 mt-2">
+                    <div class="col-8">
+                        <strong>Total Pendapatan</strong>
+                    </div>
+                    <div class="col-4 text-end">
+                        <strong class="text-success">{{ format_currency(total_revenue) }}</strong>
+                    </div>
+                </div>
+            {% else %}
+                <div class="text-muted ms-3">Tidak ada pendapatan</div>
+            {% endif %}
+        </div>
+        
+        <!-- Expenses Section -->
+        <div class="mb-4">
+            <h6 class="text-danger border-bottom pb-2">
+                <i class="fas fa-arrow-down me-2"></i>BEBAN
+            </h6>
+            {% if expense_accounts %}
+                {% for account in expense_accounts %}
+                <div class="row">
+                    <div class="col-8">
+                        <span class="ms-3">{{ account.name }}</span>
+                    </div>
+                    <div class="col-4 text-end">
+                        {{ format_currency(account.balance) }}
+                    </div>
+                </div>
+                {% endfor %}
+                <div class="row border-top pt-2 mt-2">
+                    <div class="col-8">
+                        <strong>Total Beban</strong>
+                    </div>
+                    <div class="col-4 text-end">
+                        <strong class="text-danger">{{ format_currency(total_expenses) }}</strong>
+                    </div>
+                </div>
+            {% else %}
+                <div class="text-muted ms-3">Tidak ada beban</div>
+            {% endif %}
+        </div>
+        
+        <!-- Net Income Section -->
+        <div class="row border-top border-2 pt-3">
+            <div class="col-8">
+                <h5>
+                    {{ 'LABA BERSIH' if net_income >= 0 else 'RUGI BERSIH' }}
+                </h5>
+            </div>
+            <div class="col-4 text-end">
+                <h5 class="{{ 'text-success' if net_income >= 0 else 'text-danger' }}">
+                    {{ format_currency(net_income) }}
+                </h5>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Financial Ratios Card -->
+<div class="card mt-4">
+    <div class="card-header">
+        <h6><i class="fas fa-calculator me-2"></i>Analisis Kinerja</h6>
+    </div>
+    <div class="card-body">
+        <div class="row text-center">
+            <div class="col-md-3">
+                <div class="border rounded p-3">
+                    <h6 class="text-muted">Margin Laba</h6>
+                    <h5 class="{{ 'text-success' if net_income >= 0 else 'text-danger' }}">
+                        {% if total_revenue > 0 %}
+                            {{ "%.2f"|format((net_income / total_revenue * 100)) }}%
+                        {% else %}
+                            0.00%
+                        {% endif %}
+                    </h5>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="border rounded p-3">
+                    <h6 class="text-muted">Total Pendapatan</h6>
+                    <h5 class="text-success">{{ format_currency(total_revenue) }}</h5>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="border rounded p-3">
+                    <h6 class="text-muted">Total Beban</h6>
+                    <h5 class="text-danger">{{ format_currency(total_expenses) }}</h5>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="border rounded p-3">
+                    <h6 class="text-muted">{{ 'Laba' if net_income >= 0 else 'Rugi' }}</h6>
+                    <h5 class="{{ 'text-success' if net_income >= 0 else 'text-danger' }}">
+                        {{ format_currency(net_income) }}
+                    </h5>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - Aplikasi Akuntansi IIUC{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h2><i class="fas fa-tachometer-alt me-2"></i>Dashboard</h2>
+        <p class="text-muted">Selamat datang, {{ session.name }}!</p>
+    </div>
+</div>
+
+<div class="row g-4">
+    <!-- Assets Card -->
+    <div class="col-md-6 col-lg-3">
+        <div class="card text-center h-100">
+            <div class="card-body">
+                <i class="fas fa-wallet fa-3x text-success mb-3"></i>
+                <h5 class="card-title">Total Harta</h5>
+                <h3 class="text-success">{{ format_currency(total_assets) }}</h3>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Liabilities Card -->
+    <div class="col-md-6 col-lg-3">
+        <div class="card text-center h-100">
+            <div class="card-body">
+                <i class="fas fa-credit-card fa-3x text-warning mb-3"></i>
+                <h5 class="card-title">Total Kewajiban</h5>
+                <h3 class="text-warning">{{ format_currency(total_liabilities) }}</h3>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Equity Card -->
+    <div class="col-md-6 col-lg-3">
+        <div class="card text-center h-100">
+            <div class="card-body">
+                <i class="fas fa-chart-pie fa-3x text-info mb-3"></i>
+                <h5 class="card-title">Total Modal</h5>
+                <h3 class="text-info">{{ format_currency(total_equity) }}</h3>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Net Income Card -->
+    <div class="col-md-6 col-lg-3">
+        <div class="card text-center h-100">
+            <div class="card-body">
+                <i class="fas fa-chart-line fa-3x {{ 'text-success' if net_income >= 0 else 'text-danger' }} mb-3"></i>
+                <h5 class="card-title">Laba Bersih</h5>
+                <h3 class="{{ 'text-success' if net_income >= 0 else 'text-danger' }}">
+                    {{ format_currency(net_income) }}
+                </h3>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-chart-bar me-2"></i>Pendapatan vs Beban</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-6 text-center">
+                        <i class="fas fa-arrow-up fa-2x text-success mb-2"></i>
+                        <h6>Pendapatan</h6>
+                        <h4 class="text-success">{{ format_currency(total_revenue) }}</h4>
+                    </div>
+                    <div class="col-6 text-center">
+                        <i class="fas fa-arrow-down fa-2x text-danger mb-2"></i>
+                        <h6>Beban</h6>
+                        <h4 class="text-danger">{{ format_currency(total_expenses) }}</h4>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-balance-scale me-2"></i>Keseimbangan Akuntansi</h5>
+            </div>
+            <div class="card-body">
+                <p><strong>Harta = Kewajiban + Modal</strong></p>
+                <p>{{ format_currency(total_assets) }} = {{ format_currency(total_liabilities) }} + {{ format_currency(total_equity) }}</p>
+                
+                {% set balance_check = total_assets - (total_liabilities + total_equity) %}
+                {% if balance_check == 0 %}
+                <div class="alert alert-success">
+                    <i class="fas fa-check-circle me-1"></i>Neraca Seimbang
+                </div>
+                {% else %}
+                <div class="alert alert-warning">
+                    <i class="fas fa-exclamation-triangle me-1"></i>
+                    Selisih: {{ format_currency(balance_check) }}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-tasks me-2"></i>Menu Utama</h5>
+            </div>
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <a href="{{ url_for('journal_entry') }}" class="btn btn-outline-primary w-100 h-100 d-flex flex-column justify-content-center">
+                            <i class="fas fa-plus-circle fa-2x mb-2"></i>
+                            <span>Input Jurnal</span>
+                        </a>
+                    </div>
+                    <div class="col-md-4">
+                        <a href="{{ url_for('trial_balance') }}" class="btn btn-outline-info w-100 h-100 d-flex flex-column justify-content-center">
+                            <i class="fas fa-balance-scale fa-2x mb-2"></i>
+                            <span>Neraca Saldo</span>
+                        </a>
+                    </div>
+                    <div class="col-md-4">
+                        <a href="{{ url_for('income_statement') }}" class="btn btn-outline-success w-100 h-100 d-flex flex-column justify-content-center">
+                            <i class="fas fa-chart-line fa-2x mb-2"></i>
+                            <span>Laporan Laba Rugi</span>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
