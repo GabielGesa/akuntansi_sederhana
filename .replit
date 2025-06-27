@@ -2,7 +2,7 @@ modules = ["python-3.11", "postgresql-16"]
 
 [nix]
 channel = "stable-24_05"
-packages = ["openssl", "postgresql"]
+packages = ["openssl", "postgresql", "php82", "php82Extensions.pdo", "php82Extensions.pdo_pgsql", "php82Extensions.session", "php82Extensions.mbstring", "php82Extensions.pgsql"]
 
 [deployment]
 deploymentTarget = "autoscale"

@@ -1,0 +1,71 @@
+<?php
+require_once 'includes/template.php';
+
+// Redirect if already logged in
+if (isLoggedIn()) {
+    redirect('/dashboard');
+}
+
+// Handle login form submission
+if (isPost()) {
+    $username = getPost('username');
+    $password = getPost('password');
+    
+    if (loginUser($username, $password)) {
+        setFlashMessage("Selamat datang, $username!", 'success');
+        redirect('/dashboard');
+    } else {
+        setFlashMessage('Username atau password salah!', 'error');
+    }
+}
+
+renderHeader('Login - Aplikasi Akuntansi');
+?>
+
+<div class="row justify-content-center">
+    <div class="col-md-6 col-lg-4">
+        <div class="card">
+            <div class="card-header text-center">
+                <h4><i class="fas fa-calculator me-2"></i>Aplikasi Akuntansi</h4>
+            </div>
+            <div class="card-body">
+                <form method="POST">
+                    <div class="mb-3">
+                        <label for="username" class="form-label">Username</label>
+                        <input type="text" class="form-control" id="username" name="username" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="password" class="form-label">Password</label>
+                        <input type="password" class="form-control" id="password" name="password" required>
+                    </div>
+                    
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-sign-in-alt me-1"></i>Login
+                        </button>
+                    </div>
+                </form>
+                
+                <hr>
+                <div class="text-center mb-3">
+                    <p class="mb-2">Belum punya akun?</p>
+                    <a href="/register" class="btn btn-outline-success">
+                        <i class="fas fa-user-plus me-1"></i>Daftar Akun Baru
+                    </a>
+                </div>
+                
+                <hr>
+                <div class="text-center">
+                    <small class="text-muted">
+                        <strong>Demo Akun:</strong><br>
+                        Admin: admin / admin123<br>
+                        User: user / user123
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<?php renderFooter(); ?>
