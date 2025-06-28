@@ -1,0 +1,1 @@
+# akuntansi_sederhana
